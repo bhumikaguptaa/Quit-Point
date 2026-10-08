@@ -1,0 +1,21 @@
+{
+  "n_users": 115222,
+  "lifespan_days_median": 1,
+  "lifespan_days_p25": 1,
+  "lifespan_days_p75": 5,
+  "pct_users_single_day_only": 56.71,
+  "retention_curve_pct_by_day": {
+    "0": 100.0,
+    "1": 43.29,
+    "2": 36.78,
+    "3": 31.56,
+    "4": 26.97,
+    "5": 22.83,
+    "6": 18.92,
+    "7": 15.11,
+    "8": 11.4,
+    "9": 8.37,
+    "10": 5.28,
+    "11": 1.82
+  }
+}

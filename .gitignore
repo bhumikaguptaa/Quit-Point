@@ -1,0 +1,20 @@
+# Node
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Python
+__pycache__/
+*.pyc
+
+# Large source datasets — not committed, regenerate via data-analysis/notebooks/*.py
+# or re-download from the documented public sources (see PROJECT.md Phase 1)
+data-analysis/raw/
+dataverse_files/
+
+# OS / editor
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea

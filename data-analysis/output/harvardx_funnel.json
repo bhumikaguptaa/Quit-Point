@@ -1,0 +1,62 @@
+{
+  "HarvardX/CB22x/2013_Spring": {
+    "registered": 30002,
+    "viewed": 16314,
+    "explored": 547,
+    "certified": 384,
+    "pct_viewed_of_registered": 54.38,
+    "pct_explored_of_viewed": 3.35,
+    "pct_certified_of_explored": 70.2,
+    "pct_certified_of_registered": 1.28
+  },
+  "HarvardX/CS50x/2012": {
+    "registered": 169621,
+    "viewed": 106086,
+    "explored": 11023,
+    "certified": 1287,
+    "pct_viewed_of_registered": 62.54,
+    "pct_explored_of_viewed": 10.39,
+    "pct_certified_of_explored": 11.68,
+    "pct_certified_of_registered": 0.76
+  },
+  "HarvardX/ER22x/2013_Spring": {
+    "registered": 57406,
+    "viewed": 32161,
+    "explored": 3532,
+    "certified": 2346,
+    "pct_viewed_of_registered": 56.02,
+    "pct_explored_of_viewed": 10.98,
+    "pct_certified_of_explored": 66.42,
+    "pct_certified_of_registered": 4.09
+  },
+  "HarvardX/PH207x/2012_Fall": {
+    "registered": 41592,
+    "viewed": 24279,
+    "explored": 4332,
+    "certified": 1842,
+    "pct_viewed_of_registered": 58.37,
+    "pct_explored_of_viewed": 17.84,
+    "pct_certified_of_explored": 42.52,
+    "pct_certified_of_registered": 4.43
+  },
+  "HarvardX/PH278x/2013_Spring": {
+    "registered": 39602,
+    "viewed": 15016,
+    "explored": 1190,
+    "certified": 711,
+    "pct_viewed_of_registered": 37.92,
+    "pct_explored_of_viewed": 7.92,
+    "pct_certified_of_explored": 59.75,
+    "pct_certified_of_registered": 1.8
+  },
+  "__all_courses_combined__": {
+    "registered": 338223,
+    "viewed": 193856,
+    "explored": 20624,
+    "certified": 6570,
+    "pct_viewed_of_registered": 57.32,
+    "pct_explored_of_viewed": 10.64,
+    "pct_certified_of_explored": 31.86,
+    "pct_certified_of_registered": 1.94
+  }
+}
