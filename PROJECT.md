@@ -37,6 +37,36 @@ if resuming after an interruption — don't re-derive state from scratch.
     disproportionately at levels 5/10/15?"). That also needed a crowd histogram of quit
     levels across many readers, which no longer exists once the backend is gone. Rather than
     fabricate the stat, it's dropped. Confirmed with the user 2026-10-08.
+- **Core mechanic swapped again: mental math → memory span ladder (2026-10-08, second pass).**
+  A 3x3 grid flashes a sequence; the reader taps it back. Level N = N+2 tiles. This is the
+  Corsi block-tapping / digit-span paradigm, so the "backed by research" framing survives.
+  - `web/src/puzzles.ts` is now the sequence generator + `compareSequence` (near-miss logic);
+    `web/src/memorygrid.ts` replaces `mathinput.ts` (deleted).
+  - **Near-miss redefined again:** got all but the last 1-2 tiles, or an adjacent transposition.
+    Verified against six hand-checked cases.
+  - **Retry rule:** a wrong sequence yields a FRESH sequence of the same length, never a repeat
+    (repeating it makes it a re-watch, not a memory test). After 3 failures at one level the UI
+    shows a nudge to decide, but never forces an end — quitting stays the reader's call, which
+    is the premise of the piece.
+  - **The ghost section survived unchanged.** Checked before building: `optimal_action(w,f,T)`
+    still returns `quit` at the first failure for `w` of 0-1 at every budget, so the ghost's
+    logic and copy hold under the new mechanic. Only the wording changed (tiles, not answers).
+- **Design pass (2026-10-08, same session).** Addressed a brief diagnosing the page as
+  "generic AI-generated": every section was the same recipe (full-bleed solid colour → eyebrow
+  → serif headline → paragraph → white rounded card), with a different hue per section.
+  - **Palette cut to one paper, one ink, two accents.** Was cream/red/blue/purple rotating per
+    section. Now bone paper `#f5f0e6`, warm ink `#1c1917`, stakes `#c2452d`, resolve `#1565c0`
+    (dark: `#1a1816` / `#f2ede3` / `#e0674a` / `#4d94e8`). Colour appears at four moments only.
+    **A teal was tried first for the cool accent and FAILED the dataviz chroma floor** — it sits
+    near the OKLCH gray axis at the needed lightness and reads gray. Blue was the fix. Both
+    modes pass all six checks; re-run `validate_palette.js` before changing either accent.
+  - **Killed the default card.** Charts now draw directly on the paper with hairline rules.
+  - **Layouts varied per section:** oversized numeral for the reveal (the one hard colour cut),
+    wide-but-capped chart bleed, pull-quote for the counterweight, inline stat chips for the
+    zoom-out. The decorative background "blobs" were deleted as unearned colour.
+  - **Motion:** count-ups on scroll-into-view, bar grow-ins, and an orchestrated four-stage
+    climax on the stopping chart (line draws → dashed run → drop guide → dot lands → label).
+    Staged with `transition-delay`, so the reduced-motion fallback is simply the static chart.
 - **Core mechanic swapped: chess puzzles → mental math puzzles (2026-10-08).** The user asked
   to replace the chess ladder with "small mental math puzzles that get increasingly
   difficult." Reasons weren't stated explicitly, but this removes the Lichess dataset
@@ -118,9 +148,9 @@ ever needed; this section describes the current (math) implementation only.
        operand size and operation *count*, not raw operand magnitude — and estimation puzzles
        always use "round" bases (multiples of 10/100) so the real mental shortcut (round,
        then multiply/take a percentage) stays available at every level.
-- [x] `src/mathinput.ts` — `MathInput` class: renders one puzzle's prompt + a number input +
-      submit button, flashes success/error state (including input border color + auto-select
-      on wrong answer, so a reader can immediately retype), replaces the old chess `board.ts`.
+- [x] ~~`src/mathinput.ts`~~ — **superseded.** Was the number-input component for the mental
+      math mechanic; deleted in the memory-span swap (see Decisions). Replaced by
+      `src/memorygrid.ts`.
 - [x] `src/stopping.ts` — direct TS port of `optimal_strategy.py` + `reader_comparison.py`
       (`classifyQuit`), untouched by the chess→math pivot (model is puzzle-type-agnostic).
       **Verified numerically identical to the Python reference** across multiple
@@ -158,17 +188,48 @@ analysis — see Decisions above for why both were dropped):
    the correct one? (`reveal-near-miss`)
 4. Optimal-stopping explainer — Sukhov et al. curve rendered as an SVG line chart, reader's
    own (failures, levels-remaining) point overlaid as a marker. (`reveal-stopping`)
-5. Over-persistence counterweight — MTurk boring-task citation (~50% persisted for zero
+5. **The ghost** — the optimal policy replayed against the reader's actual attempt sequence.
+   (`reveal-ghost`, logic in `web/src/ghost.ts`) Added 2026-10-08.
+6. Over-persistence counterweight — MTurk boring-task citation (~50% persisted for zero
    reward). (`reveal-over-persistence`)
-6. Zoom out — small-multiples grid, one sequential-hue bar chart per real dataset: Steam
+7. Zoom out — small-multiples grid, one sequential-hue bar chart per real dataset: Steam
    achievement completion, HarvardX/MITx certification rate, Duolingo day-by-day retention.
    (`reveal-zoom-out`)
-7. Closing argument coda + replay (board returns via a "play again" button that restarts the
+8. Closing argument coda + replay (board returns via a "play again" button that restarts the
    `Ladder`). (`reveal-coda`, `reveal-replay`)
 
 All built in `web/src/sections.ts` (content/markup), `web/src/charts.ts` (the SVG stopping
 curve + small-multiples bars), and `web/src/data.ts` (the real cited figures, copied in from
 `data-analysis/output/*.json` — see note below on keeping these in sync).
+
+#### The ghost section — modelling findings (read before changing it)
+
+Inspired by the replay mechanic in pudding.cool/2026/06/mow. Two results were derived from
+the model before building, and both constrain what this section can honestly claim. Verified
+by running `optimal_action` from `data-analysis/notebooks/optimal_strategy.py` directly:
+
+1. **The policy quits on the first failure, at every budget level.** `optimal_action(0, 1, T)`
+   returns `quit` for every `T` from 1 to 9. You need 2+ successes *banked on the same level*
+   to earn one failure (`w=2` persists through `f=1`; `w=4` through `f=2`). This ladder gives
+   at most one success per level — solving a level advances you — so a reader stuck on a level
+   can never bank enough to buy slack.
+2. **The ghost therefore never quits on an earlier level than the reader.** Every level before
+   the one they're stuck on, they *solved*, so the ghost passes those with zero failures and
+   never faces a decision. Both arrive at the final level together. A scripted check of four
+   scenarios (clean run then stall, long clean run then stall, instant fail, perfect run) gave
+   `levelsOverPersisted = 0` in all four.
+
+So the original "the math quit at level 2, you went to level 6" framing was **wrong and was
+abandoned**. The real, honest gap is measured in *attempts within the final level*: the ghost
+leaves on the reader's first wrong answer, and everything after that is the over-persistence.
+`simulateGhost()` returns `extraAttempts` for exactly this. Three branches are rendered:
+matched-optimal (quit on first wrong answer), a gap (quit later), and no-failure (quit cold or
+finished, so the ghost never had a reason to leave).
+
+**Standing caveat, stated in the UI:** in Sukhov et al. "quit" means switching to a *fresh arm*
+from an abundant pool, not ending the session. This ladder has nothing to switch to, so the
+section reads the policy's quit as "this level isn't worth your remaining budget." Don't let
+that slide into implying the paper measured people stopping altogether.
 
 ### Phase 4 — Visual design & motion — ✅ DONE
 - [x] Color tokens as CSS custom properties in `style.css`, redefined under both
@@ -230,12 +291,13 @@ data-analysis/
 web/
   src/puzzles.ts        procedural math-puzzle generator, 10 levels (arithmetic/sequence/
                          estimation rotation) — see Phase 2 for the bugs found building it
-  src/mathinput.ts        MathInput: renders a puzzle prompt + number input + submit
+  src/memorygrid.ts       MemoryGrid: flashes a sequence, accepts taps, no mid-input feedback
   src/ladder.ts            Ladder: level progression, attempt tracking, quit/finish events
   src/stopping.ts           TS port of optimal_strategy.py / reader_comparison.py (verified)
   src/data.ts                real cited figures, copied in from data-analysis/output/*.json
   src/charts.ts               SVG stopping-curve chart + small-multiples bar charts
-  src/sections.ts              all 7 post-quit scroll sections (content + wiring)
+  src/ghost.ts                 optimal policy replayed against the reader's attempts
+  src/sections.ts              all 8 post-quit scroll sections (content + wiring)
   src/main.ts                   top-level wiring: cold open, quit, replay
   src/style.css                  full design system: tokens, typography, motion, math input,
                                   charts (chess board styles removed in the pivot)

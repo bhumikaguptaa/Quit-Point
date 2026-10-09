@@ -33,7 +33,7 @@ function V(w: number, f: number, T: number): number {
   return result;
 }
 
-function optimalAction(w: number, f: number, T: number): 'persist' | 'quit' {
+export function optimalAction(w: number, f: number, T: number): 'persist' | 'quit' {
   if (T === 0) return 'persist';
 
   const a = A0 + w;

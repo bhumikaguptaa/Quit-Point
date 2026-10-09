@@ -1,48 +1,60 @@
-import { MathInput } from './mathinput';
-import { PUZZLES, type Puzzle } from './puzzles';
+import { MemoryGrid } from './memorygrid';
+import {
+  MAX_FAILURES_PER_LEVEL,
+  TOTAL_LEVELS,
+  generatePuzzle,
+  sequenceLengthForLevel,
+} from './puzzles';
 
 export interface AttemptRecord {
   level: number; // 1-indexed
   correct: boolean;
   nearMiss: boolean;
+  /** how many leading tiles were recalled correctly */
+  matchedPrefix: number;
 }
 
 export interface LadderResult {
-  quitLevel: number; // 1-indexed level the reader was ON when they quit; 0 if they finished all levels
+  quitLevel: number; // 1-indexed level the reader was ON when they quit; 0 if they cleared the ladder
   finished: boolean;
   levelsRemaining: number;
   attempts: AttemptRecord[];
   lastAttemptWasNearMiss: boolean;
   timeToQuitSeconds: number;
+  /** sequence length the reader was facing when they stopped */
+  sequenceLengthAtQuit: number;
+  attemptsOnFinalLevel: number;
 }
 
 export type LadderEvent =
-  | { type: 'levelStart'; level: number; total: number }
+  | { type: 'levelStart'; level: number; sequenceLength: number; failuresHere: number }
   | { type: 'correct'; level: number }
-  | { type: 'incorrect'; level: number; nearMiss: boolean }
+  | { type: 'incorrect'; level: number; nearMiss: boolean; failuresHere: number }
+  | { type: 'wall'; level: number }
   | { type: 'quit'; result: LadderResult }
   | { type: 'finished'; result: LadderResult };
 
 type Listener = (e: LadderEvent) => void;
 
 /**
- * Drives the mental-math puzzle ladder: owns the current MathInput instance,
- * advances levels on a correct answer, and produces a LadderResult when the
- * reader quits or clears the whole ladder. Never exposes "level N of M"
- * beyond what the caller chooses to render.
+ * Drives the memory span ladder. On a wrong sequence the reader gets a FRESH
+ * sequence of the same length rather than a repeat of the one they just saw —
+ * repeating it would turn a memory test into a re-watch. After
+ * MAX_FAILURES_PER_LEVEL failures at one level we emit 'wall' so the UI can
+ * nudge a decision, but we never force the session to end: quitting stays the
+ * reader's call, which is the whole premise of the piece.
  */
 export class Ladder {
-  private puzzles: Puzzle[];
   private container: HTMLElement;
-  private input: MathInput | null = null;
-  private currentLevel = 0; // 0-indexed into this.puzzles
+  private grid: MemoryGrid | null = null;
+  private currentLevel = 1; // 1-indexed
+  private failuresAtLevel = 0;
   private attempts: AttemptRecord[] = [];
   private startedAt = Date.now();
   private listeners: Listener[] = [];
   private done = false;
 
-  constructor(container: HTMLElement, puzzles: Puzzle[] = PUZZLES) {
-    this.puzzles = puzzles;
+  constructor(container: HTMLElement) {
     this.container = container;
   }
 
@@ -56,66 +68,102 @@ export class Ladder {
 
   start() {
     this.startedAt = Date.now();
-    this.loadLevel(0);
+    this.loadLevel(1);
   }
 
-  private loadLevel(index: number) {
-    this.currentLevel = index;
-    const puzzle = this.puzzles[index];
+  private loadLevel(level: number) {
+    this.currentLevel = level;
+    this.failuresAtLevel = 0;
+    this.presentAttempt();
+  }
 
-    this.input?.destroy();
-    this.input = new MathInput(this.container, puzzle, {
-      onSubmit: (_value, isCorrect, isNearMiss) => this.handleSubmit(isCorrect, isNearMiss),
+  /** builds a fresh sequence at the current level and plays it */
+  private presentAttempt() {
+    const puzzle = generatePuzzle(this.currentLevel);
+
+    this.grid?.destroy();
+    this.grid = new MemoryGrid(this.container, puzzle, {
+      onSubmit: (correct, nearMiss, matchedPrefix) =>
+        this.handleSubmit(correct, nearMiss, matchedPrefix),
     });
 
-    this.emit({ type: 'levelStart', level: index + 1, total: this.puzzles.length });
+    this.emit({
+      type: 'levelStart',
+      level: this.currentLevel,
+      sequenceLength: sequenceLengthForLevel(this.currentLevel),
+      failuresHere: this.failuresAtLevel,
+    });
+
+    this.grid.start();
   }
 
-  private handleSubmit(isCorrect: boolean, isNearMiss: boolean) {
-    this.attempts.push({ level: this.currentLevel + 1, correct: isCorrect, nearMiss: isNearMiss });
-    this.input?.flashResult(isCorrect);
+  private handleSubmit(correct: boolean, nearMiss: boolean, matchedPrefix: number) {
+    if (this.done) return;
 
-    if (isCorrect) {
-      this.emit({ type: 'correct', level: this.currentLevel + 1 });
-      this.input?.lock();
+    this.attempts.push({
+      level: this.currentLevel,
+      correct,
+      nearMiss,
+      matchedPrefix,
+    });
+
+    if (correct) {
+      this.emit({ type: 'correct', level: this.currentLevel });
       window.setTimeout(() => {
-        if (this.currentLevel + 1 >= this.puzzles.length) {
+        if (this.done) return;
+        if (this.currentLevel >= TOTAL_LEVELS) {
           this.finish();
         } else {
           this.loadLevel(this.currentLevel + 1);
         }
-      }, 600);
-    } else {
-      this.emit({ type: 'incorrect', level: this.currentLevel + 1, nearMiss: isNearMiss });
+      }, 620);
+      return;
     }
+
+    this.failuresAtLevel += 1;
+    this.emit({
+      type: 'incorrect',
+      level: this.currentLevel,
+      nearMiss,
+      failuresHere: this.failuresAtLevel,
+    });
+
+    if (this.failuresAtLevel >= MAX_FAILURES_PER_LEVEL) {
+      this.emit({ type: 'wall', level: this.currentLevel });
+    }
+
+    window.setTimeout(() => {
+      if (this.done) return;
+      this.presentAttempt();
+    }, 760);
   }
 
-  /** Called when the reader presses "I give up". */
+  /** "I give up" */
   quit() {
     if (this.done) return;
     this.done = true;
-    this.input?.lock();
-
-    const result = this.buildResult(this.currentLevel + 1, false);
-    this.emit({ type: 'quit', result });
+    this.grid?.lock();
+    this.emit({ type: 'quit', result: this.buildResult(this.currentLevel, false) });
   }
 
   private finish() {
     if (this.done) return;
     this.done = true;
-    const result = this.buildResult(0, true);
-    this.emit({ type: 'finished', result });
+    this.emit({ type: 'finished', result: this.buildResult(0, true) });
   }
 
   private buildResult(quitLevel: number, finished: boolean): LadderResult {
     const last = this.attempts[this.attempts.length - 1];
+    const finalLevel = finished ? TOTAL_LEVELS : quitLevel;
     return {
       quitLevel,
       finished,
-      levelsRemaining: finished ? 0 : this.puzzles.length - (this.currentLevel + 1),
+      levelsRemaining: finished ? 0 : TOTAL_LEVELS - quitLevel,
       attempts: this.attempts,
       lastAttemptWasNearMiss: last?.nearMiss ?? false,
       timeToQuitSeconds: Math.round((Date.now() - this.startedAt) / 1000),
+      sequenceLengthAtQuit: sequenceLengthForLevel(finalLevel),
+      attemptsOnFinalLevel: this.attempts.filter((a) => a.level === finalLevel).length,
     };
   }
 }
