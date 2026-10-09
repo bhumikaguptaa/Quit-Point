@@ -39,14 +39,19 @@ export class MemoryGrid {
     this.render();
   }
 
-  /** flashes the sequence, then hands control to the reader */
-  start() {
+  /**
+   * Flashes the sequence, then hands control to the reader. `leadMs` delays
+   * the first flash — used for the "ready…" beat after the landing screen's
+   * Begin button, so the very first sequence is never missed because the
+   * reader was still reading the instructions.
+   */
+  start(leadMs: number = PRE_WATCH_MS) {
     this.phase = 'watching';
     this.setStatus('watch');
     this.entered = [];
     this.updateProgress();
 
-    let t = PRE_WATCH_MS;
+    let t = leadMs;
     this.puzzle.sequence.forEach((tile) => {
       this.timers.push(
         window.setTimeout(() => this.flashTile(tile), t),

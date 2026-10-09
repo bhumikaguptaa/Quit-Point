@@ -67,6 +67,52 @@ if resuming after an interruption — don't re-derive state from scratch.
   - **Motion:** count-ups on scroll-into-view, bar grow-ins, and an orchestrated four-stage
     climax on the stopping chart (line draws → dashed run → drop guide → dot lands → label).
     Staged with `transition-delay`, so the reduced-motion fallback is simply the static chart.
+- **Design pass 2 (2026-10-08, "revision 3").** The pass above overcorrected — the page read as
+  flat and bleak (near-black-on-cream everywhere, nothing emphasized). This pass adopted the
+  palette and markup patterns from a reference HTML kit built off pudding.cool's essential-words
+  piece (highlighter-block `<mark>` treatment, unit grids, runway/race charts).
+  - **Three real bugs fixed:**
+    1. The ladder started flashing the instant the page loaded, no landing state. Added
+       `#landing` → Begin button → `ready/2/1` countdown → first flash, via a new `leadMs`
+       param threaded through `Ladder.start()` → `MemoryGrid.start()`.
+    2. Quitting left the reader on a dead screen with no sign the page continued. Fixed with
+       `scrollIntoView` to the first reveal section plus a persistent progress rail
+       (`#progress-rail`, one tick per section in `REVEAL_SECTION_IDS`, now exported from
+       `sections.ts`).
+    3. Quitting before ever attempting the final level produced "the sequence broke down after
+       0 tiles" — a real finding ("you quit clean") mislabeled as a bug-looking non-sequitur.
+       Added `LadderResult.quitBeforeAnyAttempt` and a dedicated copy branch.
+    4. **Found during this pass, not in the brief:** toggling the `hidden` attribute from JS had
+       no visual effect on `.landing`/`.play-area`, because author CSS (`.landing { display:
+       flex }`) always outranks the UA stylesheet's `[hidden] { display: none }`, regardless of
+       specificity or source order. Fixed with one global `[hidden] { display: none !important
+       }` rule — anything that sets its own `display` and also uses the `hidden` attribute needs
+       this, so don't remove it when adding new toggled sections.
+  - **The two broken charts were replaced, not patched** — see `web/src/runway.ts` and
+    `web/src/race.ts`. Important finding verified against the model before building either: the
+    brief describes both in terms of **levels** ("the model stops at level 5"), but
+    `optimal_action` only ever produces a stopping point in **attempts within the final level** —
+    confirmed last session, the ghost never quits on an earlier level than the reader, since
+    every earlier level was solved to get there. Building a level-based chart would mean
+    showing something the model doesn't actually compute. Kept the brief's exact visual
+    language (a runway with a shaded gap, two parallel dot tracks) but relabeled both around
+    attempts-within-the-stuck-level, which is what `ghost.ts` already correctly tracks.
+  - **Palette replaced again**, this time to the reference kit's three-role system — You
+    (orange), Model (purple), Context (taupe), each with a pastel "highlighter" ground and a
+    deeper "mark" companion — rather than the two-accent "stakes/resolve" system from pass 1.
+    Re-validated with `validate_palette.js`: the You/Model mark pair passes all six checks in
+    light mode; the Context mark (`#B3AB92`) fails the chroma floor alone (reads near-gray) but
+    this is accepted deliberately — it's the validator's documented secondary-encoding
+    exception, Context never carries meaning alone (You/Model are the only semantically-loaded
+    marks), and every bar has a direct text label. Dark-mode pastels sit above the lightness
+    band by design (they're used as light-on-dark marks directly, a different role than
+    bars-on-light-surface). Don't change these hexes without re-running the validator.
+  - **New modules:** `runway.ts` (C2), `race.ts` (C3), `unitgrid.ts` (C4, the "each square is
+    one worker" MTurk visual), `motion.ts` (extracted the scroll-trigger helper that `charts.ts`
+    used to own privately, now shared by all three chart types).
+  - **Text hierarchy cut to three levels** (headline / lede / footnote) per the brief; anything
+    that used to sit in between was promoted, cut, or moved into a collapsed `<details>`
+    ("Show the method") so methodology stays out of the main read.
 - **Core mechanic swapped: chess puzzles → mental math puzzles (2026-10-08).** The user asked
   to replace the chess ladder with "small mental math puzzles that get increasingly
   difficult." Reasons weren't stated explicitly, but this removes the Lichess dataset

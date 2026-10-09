@@ -24,6 +24,8 @@ export interface LadderResult {
   /** sequence length the reader was facing when they stopped */
   sequenceLengthAtQuit: number;
   attemptsOnFinalLevel: number;
+  /** true if the reader quit before submitting a single sequence on their final level */
+  quitBeforeAnyAttempt: boolean;
 }
 
 export type LadderEvent =
@@ -66,19 +68,20 @@ export class Ladder {
     for (const l of this.listeners) l(e);
   }
 
-  start() {
+  /** @param firstLeadMs delay before the very first flash (the "ready…" beat) */
+  start(firstLeadMs?: number) {
     this.startedAt = Date.now();
-    this.loadLevel(1);
+    this.loadLevel(1, firstLeadMs);
   }
 
-  private loadLevel(level: number) {
+  private loadLevel(level: number, leadMs?: number) {
     this.currentLevel = level;
     this.failuresAtLevel = 0;
-    this.presentAttempt();
+    this.presentAttempt(leadMs);
   }
 
   /** builds a fresh sequence at the current level and plays it */
-  private presentAttempt() {
+  private presentAttempt(leadMs?: number) {
     const puzzle = generatePuzzle(this.currentLevel);
 
     this.grid?.destroy();
@@ -94,7 +97,7 @@ export class Ladder {
       failuresHere: this.failuresAtLevel,
     });
 
-    this.grid.start();
+    this.grid.start(leadMs);
   }
 
   private handleSubmit(correct: boolean, nearMiss: boolean, matchedPrefix: number) {
@@ -155,6 +158,7 @@ export class Ladder {
   private buildResult(quitLevel: number, finished: boolean): LadderResult {
     const last = this.attempts[this.attempts.length - 1];
     const finalLevel = finished ? TOTAL_LEVELS : quitLevel;
+    const attemptsOnFinalLevel = this.attempts.filter((a) => a.level === finalLevel).length;
     return {
       quitLevel,
       finished,
@@ -163,7 +167,8 @@ export class Ladder {
       lastAttemptWasNearMiss: last?.nearMiss ?? false,
       timeToQuitSeconds: Math.round((Date.now() - this.startedAt) / 1000),
       sequenceLengthAtQuit: sequenceLengthForLevel(finalLevel),
-      attemptsOnFinalLevel: this.attempts.filter((a) => a.level === finalLevel).length,
+      attemptsOnFinalLevel,
+      quitBeforeAnyAttempt: !finished && attemptsOnFinalLevel === 0,
     };
   }
 }

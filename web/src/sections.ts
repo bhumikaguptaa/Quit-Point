@@ -1,11 +1,25 @@
 import type { LadderResult } from './ladder';
-import { classifyQuit } from './stopping';
 import { TOTAL_LEVELS } from './puzzles';
-import { HARVARDX, DUOLINGO, OVER_PERSISTENCE, SUKHOV } from './data';
-import { renderSmallMultiples, renderStoppingCurve } from './charts';
+import { OVER_PERSISTENCE, SUKHOV } from './data';
+import { renderSmallMultiples } from './charts';
 import { simulateGhost, type GhostRun } from './ghost';
+import { runwayFromGhost, renderRunway } from './runway';
+import { renderRace } from './race';
+import { renderUnitGrid } from './unitgrid';
 
 const REDUCE_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** every post-quit section, in scroll order — used by the progress rail */
+export const REVEAL_SECTION_IDS = [
+  'reveal-instant',
+  'reveal-near-miss',
+  'reveal-stopping',
+  'reveal-ghost',
+  'reveal-over-persistence',
+  'reveal-zoom-out',
+  'reveal-coda',
+  'reveal-replay',
+] as const;
 
 function countUp(el: HTMLElement, target: number, suffix = '', duration = 900) {
   if (REDUCE_MOTION) {
@@ -45,19 +59,17 @@ function observeIn(el: Element) {
 /** Builds and inserts every post-quit scroll section. Called once, right after quit/finish. */
 export function buildRevealSections(root: HTMLElement, result: LadderResult) {
   const totalLevels = TOTAL_LEVELS;
-  const effectiveLevel = result.finished ? totalLevels : result.quitLevel;
+  const finalLevel = result.finished ? totalLevels : result.quitLevel;
+  const ghost = simulateGhost(result.attempts, finalLevel, totalLevels);
 
-  const levelAttempts = result.attempts.filter((a) => a.level === effectiveLevel);
-  const successes = levelAttempts.filter((a) => a.correct).length;
-  const failures = levelAttempts.filter((a) => !a.correct).length;
-  const verdict = classifyQuit(successes, failures, result.levelsRemaining);
-
-  const ghost = simulateGhost(result.attempts, effectiveLevel, totalLevels);
+  // reader's completion, same units as the Steam median (% of the whole thing)
+  const readerCompletionPct = result.finished ? 100 : Math.round((result.quitLevel / totalLevels) * 100);
 
   root.innerHTML = `
     ${renderInstantReveal(result, totalLevels)}
+    ${renderPacingBeat(result)}
     ${renderNearMiss(result)}
-    ${renderStoppingExplainer()}
+    ${renderStoppingExplainer(ghost)}
     ${renderGhost(ghost, result)}
     ${renderOverPersistence()}
     ${renderZoomOut()}
@@ -66,35 +78,35 @@ export function buildRevealSections(root: HTMLElement, result: LadderResult) {
   `;
 
   // post-insert wiring that needs live DOM nodes
-  wireCountUps(root, result, totalLevels);
-  renderStoppingCurve(
-    root.querySelector('#stopping-chart')!,
-    result.finished ? null : { successes, failures, remaining: result.levelsRemaining },
-  );
-  renderSmallMultiples(root.querySelector('#small-multiples')!);
-  wireVerdictText(root, verdict);
+  wireCountUps(root);
+
+  const runwayHost = root.querySelector<HTMLElement>('#runway-chart');
+  if (runwayHost) renderRunway(runwayHost, runwayFromGhost(ghost));
+
+  renderSmallMultiples(root.querySelector('#small-multiples')!, readerCompletionPct);
+
+  const unitGridHost = root.querySelector<HTMLElement>('#mturk-units');
+  if (unitGridHost) renderUnitGrid(unitGridHost, OVER_PERSISTENCE.approxPctWhoContinuedForNoReward);
+
+  wireExpandables(root);
 
   for (const section of root.querySelectorAll('.reveal-section')) {
     observeIn(section);
   }
 }
 
-/**
- * The one hard colour cut in the piece. Oversized numeral bleeding past its
- * own column — deliberately NOT the eyebrow/headline/paragraph/card recipe
- * every other section used to follow.
- */
+/* ============================================================
+ * THE REVEAL
+ * ============================================================ */
+
 function renderInstantReveal(result: LadderResult, totalLevels: number): string {
   if (result.finished) {
     return `
-      <section class="reveal-section section-reveal is-finished" id="reveal-instant">
+      <section class="reveal-section section-reveal" id="reveal-instant">
         <div class="reveal-stack">
           <p class="kicker kicker-inverse">the reveal</p>
-          <h2 class="reveal-headline">You cleared every length.</h2>
-          <p class="reveal-sub">
-            All ${totalLevels} of them, up to ${result.sequenceLengthAtQuit} tiles. No quit point to
-            measure &mdash; so there's nothing here for you. Scroll on anyway.
-          </p>
+          <h2 class="reveal-headline">You cleared every length. All ${totalLevels} of them.</h2>
+          <p class="reveal-lede">No quit point to measure &mdash; so there's nothing here for you. Scroll on anyway.</p>
         </div>
       </section>
     `;
@@ -106,10 +118,9 @@ function renderInstantReveal(result: LadderResult, totalLevels: number): string 
         <div class="reveal-numeral">
           <span class="count-up" data-target="${result.sequenceLengthAtQuit}">0</span>
         </div>
-        <p class="reveal-headline">tiles is where you stopped.</p>
-        <p class="reveal-sub">
-          You held ${result.sequenceLengthAtQuit - 1} and reached for
-          ${result.sequenceLengthAtQuit}. ${result.levelsRemaining} level${result.levelsRemaining === 1 ? '' : 's'}
+        <h2 class="reveal-headline">tiles is where you stopped.</h2>
+        <p class="reveal-lede">
+          <mark class="you">${result.levelsRemaining} level${result.levelsRemaining === 1 ? '' : 's'}</mark>
           were still ahead of you.
         </p>
         <dl class="reveal-meta">
@@ -121,7 +132,34 @@ function renderInstantReveal(result: LadderResult, totalLevels: number): string 
   `;
 }
 
+/** A single short line, alone, between dense sections — a place for the eye to rest. */
+function renderPacingBeat(result: LadderResult): string {
+  if (result.finished) return '';
+  return `<p class="pacing-beat" aria-hidden="true">You stopped at ${result.sequenceLengthAtQuit}.</p>`;
+}
+
+/* ============================================================
+ * NEAR MISS
+ * ============================================================ */
+
 function renderNearMiss(result: LadderResult): string {
+  // A3: quitting before ever attempting the final level is its own case —
+  // "broke down after 0 tiles" was a bug, not a finding.
+  if (result.quitBeforeAnyAttempt) {
+    return `
+      <section class="reveal-section section-prose" id="reveal-near-miss">
+        <div class="prose-inner">
+          <p class="kicker">near miss?</p>
+          <h2>You quit before you got a single sequence wrong.</h2>
+          <p class="lede">
+            No miss to measure &mdash; you walked away clean. That's <mark>rarer than it sounds</mark>:
+            most people wait for at least one wrong answer before they call it.
+          </p>
+        </div>
+      </section>
+    `;
+  }
+
   const near = result.lastAttemptWasNearMiss;
   const lastAttempt = result.attempts[result.attempts.length - 1];
   const matched = lastAttempt?.matchedPrefix ?? 0;
@@ -131,68 +169,89 @@ function renderNearMiss(result: LadderResult): string {
       <div class="prose-inner">
         <p class="kicker">near miss?</p>
         <h2>${near ? 'You missed it by one tile.' : 'You lost the thread early.'}</h2>
-        <p>${
+        <p class="lede">${
           near
-            ? `You had ${matched} of ${result.sequenceLengthAtQuit} tiles in the right order before it
-               came apart &mdash; a near miss, not a guess. People who get this close tend to persist
-               longer. You didn't.`
-            : `The sequence broke down after ${matched} tile${matched === 1 ? '' : 's'}. You weren't
-               being teased by closeness, which makes this a cleaner quit than most.`
+            ? `You had <mark class="you">${matched} of ${result.sequenceLengthAtQuit} tiles</mark> right
+               before it came apart. People who get this close tend to persist longer. You didn't.`
+            : `The sequence broke down after <mark>${matched} tile${matched === 1 ? '' : 's'}</mark>.
+               Not a near miss &mdash; a cleaner quit than most.`
         }</p>
       </div>
     </section>
   `;
 }
 
-/**
- * Edge-to-edge chart with the prose in a narrow column beside it, so the
- * climax chart isn't just another padded white card.
- */
-function renderStoppingExplainer(): string {
+/* ============================================================
+ * THE MATH — runway chart (C2)
+ * ============================================================ */
+
+function renderStoppingExplainer(ghost: GhostRun): string {
+  const runway = runwayFromGhost(ghost);
+
+  if (runway.modelStopAt === null) {
+    return `
+      <section class="reveal-section section-chart" id="reveal-stopping">
+        <div class="prose-inner">
+          <p class="kicker">the math</p>
+          <h2>There's a mathematically optimal point to give up &mdash; you never needed it.</h2>
+          <p class="lede">
+            Sukhov et al. (2025, N=${SUKHOV.n.toLocaleString()}) modeled exactly this decision: keep
+            trying an uncertain task, or walk. You never gave the model a wrong answer to react to,
+            so there's no gap to show.
+          </p>
+        </div>
+      </section>
+    `;
+  }
+
+  const gap = Math.abs(runway.youStopAt - runway.modelStopAt);
+  const gapSentence =
+    gap === 0
+      ? `You stopped on the <mark class="model">exact attempt</mark> the model would have.`
+      : `The model would have walked <mark class="model">${gap} attempt${gap === 1 ? '' : 's'}</mark>
+         before <mark class="you">you</mark> did.`;
+
   return `
     <section class="reveal-section section-chart" id="reveal-stopping">
-      <div class="chart-lede">
+      <div class="prose-inner">
         <p class="kicker">the math</p>
-        <h2>There's a mathematically optimal point to give up.</h2>
-        <p>
-          Sukhov et al. (2025, N=${SUKHOV.n.toLocaleString()}) modeled exactly this kind of decision:
-          keep trying an uncertain task, or abandon it for a fresh one. The optimal strategy depends
-          on how many failures you've stacked up and how much runway you have left.
-        </p>
-        <p class="chart-explainer">
-          The line is the model's quit threshold &mdash; how many levels you'd need left to make
-          quitting the smart move, given your run at the length you stopped on. It drops to the
-          floor almost immediately, which is the model saying "walk the moment you're wrong."
-          Your dot is where you actually stood.
-        </p>
+        <h2>${gap === 0 ? 'You stopped exactly when the math did.' : 'The model would have walked sooner.'}</h2>
+        <p class="lede">${gapSentence}</p>
       </div>
-      <figure id="stopping-chart" class="chart-bleed"></figure>
-      <div class="chart-foot">
-        <p class="chart-note">
-          We're borrowing their model's structure &mdash; a memory span ladder isn't literally the
-          button-pressing task their participants did &mdash; but the shape of the decision (quit
-          under uncertainty, with a finite budget) is the same.
-        </p>
-        <p id="verdict-text"></p>
+      <figure id="runway-chart" class="chart-bleed"></figure>
+      <div class="prose-inner">
+        <details class="method-details">
+          <summary>Show the method</summary>
+          <p class="footnote">
+            Sukhov et al. (2025, N=${SUKHOV.n.toLocaleString()}) modeled this as an optimal-stopping
+            problem: keep trying an uncertain task, or abandon it, given how many failures you've
+            stacked up and how much runway you have left. We're borrowing the model's structure, not
+            claiming a memory span ladder is literally their task. In the original study "quit" means
+            switching to a fresh task, not stopping altogether &mdash; this ladder has nothing to
+            switch to, so we read the policy's "quit" as "this length isn't worth your remaining budget."
+          </p>
+        </details>
       </div>
     </section>
   `;
 }
 
+/* ============================================================
+ * THE GHOST — two-lane race (C3)
+ * ============================================================ */
+
 function renderGhost(ghost: GhostRun, result: LadderResult): string {
-  // reader never failed on their final level (quit cold, or finished the ladder)
   if (ghost.ghostQuitAttempt === null) {
     return `
-      <section class="reveal-section section-prose" id="reveal-ghost">
+      <section class="reveal-section section-chart invert" id="reveal-ghost">
         <div class="prose-inner">
-          <p class="kicker">the ghost</p>
+          <p class="kicker kicker-inverse">the ghost</p>
           <h2>${result.finished ? 'The ghost never had to leave.' : 'You walked before you were wrong.'}</h2>
-          <p>
-            We ran the optimal strategy against your exact session &mdash; a ghost watching the same
-            sequences you watched. ${
+          <p class="lede">
+            We ran the optimal strategy alongside your exact session. ${
               result.finished
-                ? 'You never gave it a failure to react to. It stayed to the end, same as you.'
-                : 'You stopped without missing a sequence at that length, so the model never got a reason to abandon it. There was nothing for the ghost to disagree with.'
+                ? 'It never got a failure to react to, so it stayed to the end &mdash; same as you.'
+                : 'You stopped clean, so there was nothing for it to disagree with.'
             }
           </p>
         </div>
@@ -200,102 +259,68 @@ function renderGhost(ghost: GhostRun, result: LadderResult): string {
     `;
   }
 
-  const trackEls = ghost.attempts
-    .map((a) => {
-      const classes = [
-        'ghost-cell',
-        a.correct ? 'is-correct' : 'is-wrong',
-        a.nearMiss ? 'is-near' : '',
-        a.afterGhostLeft ? 'is-extra' : '',
-        a.ghostQuitHere ? 'is-ghost-exit' : '',
-      ]
-        .filter(Boolean)
-        .join(' ');
-      return `
-        <div class="${classes}" style="--i: ${a.index}">
-          <span class="ghost-cell-dot"></span>
-          <span class="ghost-cell-num">${a.index}</span>
-        </div>
-      `;
-    })
-    .join('');
-
   const headline = ghost.matchedOptimal
     ? 'You stopped exactly when the math did.'
     : `The ghost left ${ghost.extraAttempts} attempt${ghost.extraAttempts === 1 ? '' : 's'} before you did.`;
 
-  const body = ghost.matchedOptimal
-    ? `Your first missed sequence at ${result.sequenceLengthAtQuit} tiles was the model's cue to walk
-       &mdash; and that's exactly where you stopped. Most people don't. Most people watch it again.`
-    : `The optimal strategy walks at the first miss, once there's nothing banked to justify staying.
-       You missed on try ${ghost.ghostQuitAttempt}, and then watched
-       <strong>${ghost.extraAttempts}</strong> more sequence${ghost.extraAttempts === 1 ? '' : 's'}
-       at that same length before giving up. That gap is the over-persistence, measured on you.`;
-
   return `
-    <section class="reveal-section section-prose" id="reveal-ghost">
+    <section class="reveal-section section-chart invert" id="reveal-ghost">
       <div class="prose-inner">
-        <p class="kicker">the ghost</p>
+        <p class="kicker kicker-inverse">the ghost</p>
         <h2>${headline}</h2>
-        <p>
-          We ran the optimal strategy against your exact session &mdash; a ghost sitting at
-          ${result.sequenceLengthAtQuit} tiles alongside you, seeing every sequence you saw.
-        </p>
-        <div class="ghost-track-wrap">
-          <div class="ghost-track-labels">
-            <span class="ghost-legend"><i class="swatch-you"></i> your tries</span>
-            <span class="ghost-legend"><i class="swatch-extra"></i> after the ghost left</span>
-          </div>
-          <div class="ghost-track">${trackEls}</div>
-        </div>
-        <p>${body}</p>
-        <p class="chart-note">
-          Caveat worth stating: in the original study "quit" means switching to a fresh task, not
-          stopping altogether. This ladder has nothing to switch to, so we read it as "this level
-          isn't worth your remaining budget."
-        </p>
+        <p class="lede">${
+          ghost.matchedOptimal
+            ? `Your first miss at ${result.sequenceLengthAtQuit} tiles was the model's cue to walk.
+               <mark class="model">Most people don't stop there.</mark> Most people watch it again.`
+            : `You missed on try ${ghost.ghostQuitAttempt}, then watched
+               <mark class="you">${ghost.extraAttempts} more sequence${ghost.extraAttempts === 1 ? '' : 's'}</mark>
+               at that same length before giving up.`
+        }</p>
       </div>
+      <div class="chart-bleed">${renderRace(ghost)}</div>
     </section>
   `;
 }
 
-/** Pull-quote layout: the stat is the whole section, set large and inline. */
+/* ============================================================
+ * THE OTHER FAILURE MODE — pull quote (C4 unit grid)
+ * ============================================================ */
+
 function renderOverPersistence(): string {
   return `
     <section class="reveal-section section-pullquote" id="reveal-over-persistence">
       <div class="pullquote-inner">
         <p class="kicker">the other failure mode</p>
         <p class="pullquote">
-          Offered an unpaid, reward-free extension after the paid task ended,
-          <span class="count-up pullquote-stat" data-target="${OVER_PERSISTENCE.approxPctWhoContinuedForNoReward}" data-suffix="%">0%</span>
-          of MTurk participants kept working anyway.
+          <mark class="you count-up-mark"><span class="count-up" data-target="${OVER_PERSISTENCE.approxPctWhoContinuedForNoReward}" data-suffix="%">0%</span></mark>
+          of MTurk workers kept clicking after the money stopped.
         </p>
-        <p class="pullquote-foot">
-          People quit winnable tasks too late, and persist with worthless ones for no reason at
-          all. Both failure modes, same person.
-        </p>
+        <div id="mturk-units" class="unit-grid-host"></div>
+        <p class="footnote">Each square is one worker. Offered an unpaid, reward-free extension after the paid task ended, half carried on anyway. Both failure modes, same person: quit winnable tasks too late, persist with worthless ones for no reason at all.</p>
       </div>
     </section>
   `;
 }
 
-/** Stat chips flowing inline like text, then the small multiples. */
+/* ============================================================
+ * ZOOM OUT (C5: reader's row dropped into the Steam list)
+ * ============================================================ */
+
 function renderZoomOut(): string {
   return `
     <section class="reveal-section section-zoomout" id="reveal-zoom-out">
       <div class="prose-inner">
         <p class="kicker">zoom out</p>
-        <h2>You're not alone. Almost no one finishes.</h2>
-        <p class="stat-flow">
-          <span class="stat-chip"><b>${HARVARDX.pctCertifiedOfRegistered}%</b> of ${HARVARDX.registered.toLocaleString()} HarvardX students certified</span>
-          <span class="stat-chip"><b>${DUOLINGO.pctSingleDayOnly}%</b> of Duolingo learners never return after day one</span>
-          <span class="stat-chip"><b>4.4%</b> median achievement rate, Assassin's Creed Valhalla</span>
-        </p>
+        <h2>Almost no one finishes. You're one data point in a very long list.</h2>
       </div>
       <div id="small-multiples" class="zoomout-charts"></div>
     </section>
   `;
 }
+
+/* ============================================================
+ * CODA / REPLAY
+ * ============================================================ */
 
 function renderCoda(): string {
   return `
@@ -303,10 +328,10 @@ function renderCoda(): string {
       <div class="prose-inner">
         <p class="kicker">closing argument</p>
         <h2>Content keeps getting longer. Completion keeps dropping.</h2>
-        <p>
-          That's not a contradiction. Length signals value to people who are deciding whether to
-          start &mdash; buyers, students, subscribers &mdash; most of whom will never finish it anyway.
-          The quit point isn't a failure of willpower. It's the most common outcome there is.
+        <p class="lede">
+          Length signals value to people deciding whether to start, most of whom will
+          <mark>never finish it anyway</mark>. The quit point isn't a failure of willpower.
+          It's the most common outcome there is.
         </p>
       </div>
     </section>
@@ -325,7 +350,11 @@ function renderReplay(): string {
   `;
 }
 
-function wireCountUps(root: HTMLElement, _result: LadderResult, _totalLevels: number) {
+/* ============================================================
+ * wiring
+ * ============================================================ */
+
+function wireCountUps(root: HTMLElement) {
   for (const el of root.querySelectorAll<HTMLElement>('.count-up')) {
     const target = Number(el.dataset.target ?? '0');
     const suffix = el.dataset.suffix ?? '';
@@ -352,12 +381,8 @@ function observeAndCountUp(el: HTMLElement, target: number, suffix: string) {
   observer.observe(el);
 }
 
-function wireVerdictText(root: HTMLElement, verdict: ReturnType<typeof classifyQuit>) {
-  const el = root.querySelector<HTMLElement>('#verdict-text');
-  if (!el) return;
-  if (verdict.verdict === 'quit_early') {
-    el.innerHTML = `<strong>You quit early.</strong> Given what you'd observed, the optimal strategy says you still had room to keep trying.`;
-  } else {
-    el.innerHTML = `<strong>Your timing checks out.</strong> The optimal strategy agrees: that was a reasonable, or even overdue, place to stop.`;
-  }
+/** Keeps methodology out of the main read: collapsed by default, no JS beyond native <details>. */
+function wireExpandables(_root: HTMLElement) {
+  // native <details>/<summary> needs no JS wiring; kept as a named hook in
+  // case expandables grow state (e.g. remembering open/closed) later.
 }
