@@ -11,6 +11,16 @@ const B0 = 1;
 
 const vCache = new Map<string, number>();
 
+/**
+ * Expected value of playing optimally from state (w successes, f failures,
+ * T pulls remaining). Exported for the "one more try" slider (§5d): lets the
+ * UI show the actual expected-payoff curve as the reader drags a "how many
+ * more would you try" control, rather than just stating the optimal T.
+ */
+export function expectedValue(w: number, f: number, T: number): number {
+  return V(w, f, T);
+}
+
 function V(w: number, f: number, T: number): number {
   if (T === 0) return 0;
   const key = `${w},${f},${T}`;

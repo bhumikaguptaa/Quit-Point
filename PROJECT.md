@@ -113,6 +113,63 @@ if resuming after an interruption — don't re-derive state from scratch.
   - **Text hierarchy cut to three levels** (headline / lede / footnote) per the brief; anything
     that used to sit in between was promoted, cut, or moved into a collapsed `<details>`
     ("Show the method") so methodology stays out of the main read.
+- **Design pass 3 (2026-10-08, "revision 4").** Fixed two real bugs, rebuilt the two hero charts
+  to never hide (per-outcome visuals instead of text-only branches), unified the layout grid,
+  and restructured the piece into 5 narrative acts with 3 new visuals (session replay, a real
+  survival curve, an interactive expected-value slider).
+  - **Two real bugs:**
+    1. `#begin-btn`'s click listener was registered with `{ once: true }`, so "Play again" looked
+       clickable but did nothing from the second run onward — the landing screen reappeared but
+       Begin had already consumed its only listener. Root cause was exactly this one line, not
+       the deeper "hoist all session state into one object" problem the brief guessed at; traced
+       all actual session state (ladder instance, DOM attrs, chart data) and confirmed it already
+       resets correctly via `revealRoot.innerHTML = ''` + `new Ladder(...)` each run.
+    2. The runway and ghost-race charts rendered text-only whenever the reader quit with zero
+       wrong answers on their final level (`ghostQuitAttempt === null`) — which is probably the
+       *most common* path through the piece, meaning most readers saw a page with no data
+       visuals in its analytical core. Fixed by drawing the honest version of that state instead
+       of hiding it: the model's track fades off the frame edge ("still climbing") rather than
+       resolving to a point it never reached. Exact visual language from the brief's reference
+       kit (`.runoff` gradient, fading `.dot.fade` trail).
+  - **Found while fixing bug 2, not in either brief:** a THIRD distinct state exists that the
+    "never hide a chart" fix initially conflated with the clean-quit case — quitting with literal
+    ZERO attempts on the final level (no sequence even submitted). That produced a nonsensical
+    "stopped at 0" race/runway. This is `LadderResult.quitBeforeAnyAttempt` from design pass 2;
+    both `renderStoppingExplainer` and `renderGhost` now check it explicitly as a third branch
+    (no chart, because there's genuinely no per-attempt data to plot — this is the one case where
+    text-only is still correct, distinct from clean-quit which has real attempts to show).
+  - **Layout grid unified.** Found the exact cause of "alignment feels off": `.lede` had an
+    independent `max-width: 42ch` cap sitting inside a 640px `.prose-inner` container (≈40
+    characters in a container sized for more), while `.chart-bleed` used a different 720px
+    measure and `.reveal-lede`/`.pullquote-foot` had their own 44ch/60ch caps — four independent
+    measures on what should read as one column. Replaced with two shared tokens,
+    `--col-text: 640px` and `--col-chart: 860px`, used everywhere; removed the conflicting `ch`
+    caps on primary content (kept them on footnotes, which are deliberately a narrower secondary
+    measure).
+  - **Act restructure** (`REVEAL_SECTION_IDS` now 10 entries): reveal → **the turn** (new) → near
+    miss → the math → the ghost → **try it yourself** (new) → over-persistence → zoom out → coda
+    → replay. The turn section's claim ("this measured uncertainty tolerance, not memory") is
+    attributed to Sukhov et al.'s own stated finding — people are "less sensitive to the number
+    of remaining trials... and more likely to persist with sub-optimal options" — NOT presented
+    as something this site measured, since we have one reader's one session, not a study.
+    Confirmed this framing with the user before writing the copy.
+  - **Three new visuals, with real honesty tradeoffs resolved before building:**
+    - **Session replay** (`replay.ts`) — one small grid per level with the real sequence drawn
+      through it. Required adding `sequence: number[]` to `AttemptRecord` (wasn't tracked before;
+      threaded through `MemoryGrid.onSubmit` → `Ladder.handleSubmit`).
+    - **Survival curve** (`survival.ts`) — the brief wanted one curve per dataset (Steam,
+      HarvardX, Duolingo), but only Duolingo has real ORDERED day-by-day data; Steam/HarvardX are
+      endpoint percentages per game/course. Building curves for those would mean inventing
+      intermediate points. Confirmed with the user: real Duolingo curve only, Steam/HarvardX stay
+      as the existing sorted bar lists. The reader's own completion % is plotted on the Duolingo
+      curve's axes as a visual anchor, with the chart's caption explicitly stating it's not a
+      literal day-for-level claim.
+    - **"One more try" slider** (`slider.ts`) — the brief's framing wanted the expected payoff of
+      naively persisting exactly N more times, but that's a different, non-optimal policy with no
+      basis in the cited Sukhov model (only the OPTIMAL expected-value function exists there).
+      Rather than invent an uncited model, exported `expectedValue()` (= the paper's own `V(w,f,T)`)
+      from `stopping.ts` and built the slider around the real optimal expected-value curve at the
+      reader's own observed state, with the quit threshold marked on it. Confirmed with the user.
 - **Core mechanic swapped: chess puzzles → mental math puzzles (2026-10-08).** The user asked
   to replace the chess ladder with "small mental math puzzles that get increasingly
   difficult." Reasons weren't stated explicitly, but this removes the Lichess dataset

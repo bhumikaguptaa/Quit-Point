@@ -44,6 +44,16 @@
   --invert-ink: #fffff2;
   --invert-soft: #9a9880;
 
+  /*
+   * One grid, used everywhere: a text column and a wider chart column, both
+   * centered on the same axis so a headline, its lede and the chart below it
+   * share a left edge instead of independently-sized containers drifting
+   * apart (the old 640/720px + 42/44/60ch mix of max-widths was the actual
+   * cause of "off and weird" alignment, not a vague feeling to fix by eye).
+   */
+  --col-text: 640px;
+  --col-chart: 860px;
+
   --display: 'Fraunces', Georgia, serif;
   --body: 'Source Serif 4', Georgia, serif;
   --mono: 'JetBrains Mono', ui-monospace, monospace;
@@ -140,10 +150,13 @@ h3 {
 /* level 1: headline — h1/h2 above. level 2: lede. level 3: footnote. nothing in between. */
 
 .lede {
+  /* no max-width here: it fills whichever container sets the measure
+     (.prose-inner etc. below) — a narrower independent cap was leaving the
+     lede at ~40ch inside a 640px container while headlines wrapped at ~55ch
+     and charts ran to ~75ch, three different right edges reading as "off" */
   font-size: 20px;
   line-height: 1.55;
   color: var(--ink);
-  max-width: 42ch;
   margin: 0 0 8px;
 }
 
@@ -602,7 +615,7 @@ mark.model {
 .prose-inner,
 .pullquote-inner,
 .chart-lede {
-  width: min(100%, 640px);
+  width: min(100%, var(--col-text));
   margin: 0 auto;
 }
 
@@ -639,7 +652,7 @@ mark.model {
 }
 
 .reveal-stack {
-  width: min(100%, 860px);
+  width: min(100%, var(--col-chart));
   margin: 0 auto;
 }
 
@@ -650,7 +663,9 @@ mark.model {
   line-height: 0.82;
   letter-spacing: -0.04em;
   color: var(--hl-ink);
-  margin-left: -0.05em;
+  /* no compensating negative margin — it was pushing the numeral further
+     left than the headline/lede below it, which already share the same
+     .reveal-stack left edge; the numeral should too */
 }
 
 .reveal-headline {
@@ -663,7 +678,7 @@ mark.model {
 .reveal-lede {
   font-size: 19px;
   color: color-mix(in oklab, var(--hl-ink) 86%, transparent);
-  max-width: 44ch;
+  max-width: var(--col-text);
   margin: 0;
 }
 
@@ -723,7 +738,7 @@ mark.model {
 /* --- chart bleed, capped so a fixed-viewBox chart doesn't overscale --- */
 
 .chart-bleed {
-  width: min(100%, 720px);
+  width: min(100%, var(--col-chart));
   margin: 36px auto 8px;
   padding: 0 24px;
 }
@@ -809,6 +824,16 @@ mark.model {
   top: 0;
   bottom: 0;
   background: var(--hl-you);
+}
+
+/* clean-quit state: the model's track runs off the right edge, fading —
+   it had no reason to stop yet and would have kept climbing indefinitely */
+.runway .runoff {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  background: linear-gradient(90deg, var(--hl-model), color-mix(in oklab, var(--hl-model) 0%, transparent));
 }
 
 .runway .node {
@@ -953,6 +978,11 @@ mark.model {
   background: transparent;
   border: 2px dashed var(--invert-soft);
   opacity: 0.5;
+}
+
+/* clean-quit state: model dots fade out rather than stopping at a point */
+.dot.fade {
+  background: var(--hl-model);
 }
 
 .stopmark {
@@ -1123,4 +1153,199 @@ mark.model {
     grid-template-columns: minmax(0, 1fr) 1.5fr 44px;
     gap: 9px;
   }
+}
+
+/* ============ session replay (§5a) ============ */
+
+.replay-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.replay-lvl {
+  text-align: center;
+}
+
+.replay-lvl svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.replay-cap {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  margin-top: 7px;
+}
+
+.replay-lvl.is-stop .replay-cap {
+  color: var(--mark-you);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .replay-lvl {
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 360ms ease-out, transform 360ms ease-out;
+  }
+  .replay-strip.is-visible .replay-lvl {
+    opacity: 1;
+    transform: none;
+  }
+  .replay-strip.is-visible .replay-lvl:nth-child(1) { transition-delay: 0ms; }
+  .replay-strip.is-visible .replay-lvl:nth-child(2) { transition-delay: 60ms; }
+  .replay-strip.is-visible .replay-lvl:nth-child(3) { transition-delay: 120ms; }
+  .replay-strip.is-visible .replay-lvl:nth-child(4) { transition-delay: 180ms; }
+  .replay-strip.is-visible .replay-lvl:nth-child(5) { transition-delay: 240ms; }
+  .replay-strip.is-visible .replay-lvl:nth-child(6) { transition-delay: 300ms; }
+  .replay-strip.is-visible .replay-lvl:nth-child(7) { transition-delay: 360ms; }
+  .replay-strip.is-visible .replay-lvl:nth-child(8) { transition-delay: 420ms; }
+  .replay-strip.is-visible .replay-lvl:nth-child(9) { transition-delay: 480ms; }
+  .replay-strip.is-visible .replay-lvl:nth-child(10) { transition-delay: 540ms; }
+}
+
+/* ============ survival curve (§5b) ============ */
+
+.survival-chart {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.survival-area {
+  fill: var(--hl-model);
+  opacity: 0.22;
+}
+
+.survival-line {
+  stroke: var(--mark-model);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.survival-dot {
+  fill: var(--mark-model);
+}
+
+.survival-reader-line {
+  stroke: var(--mark-you);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+}
+
+.survival-reader-dot {
+  fill: var(--mark-you);
+  stroke: var(--paper-2);
+  stroke-width: 2.5;
+}
+
+.survival-end-label {
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.survival-end-label.you {
+  fill: var(--mark-you);
+}
+
+.survival-end-label.model {
+  fill: var(--mark-model);
+}
+
+.axis-gridline {
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+
+.axis-t {
+  font-family: var(--mono);
+  font-size: 11px;
+  fill: var(--ink-soft);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .survival-chart {
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 500ms ease-out, transform 500ms ease-out;
+  }
+  .survival-chart.is-visible {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ============ "one more try" slider (§5d) ============ */
+
+.try-slider {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.try-chart {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.try-line {
+  stroke: var(--mark-model);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.try-dot {
+  fill: var(--mark-you);
+  stroke: var(--paper);
+  stroke-width: 2.5;
+}
+
+.try-threshold-line {
+  stroke: var(--mark-you);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+  opacity: 0.6;
+}
+
+.try-threshold-label {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  fill: var(--mark-you);
+}
+
+.try-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.try-controls label {
+  font-family: var(--mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+}
+
+.try-controls input[type='range'] {
+  width: 100%;
+  accent-color: var(--mark-you);
+}
+
+.try-readout {
+  font-size: 15px;
+  margin: 0;
+}
+
+.try-readout strong {
+  font-family: var(--mono);
+  color: var(--mark-model);
 }

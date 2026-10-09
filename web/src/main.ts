@@ -163,6 +163,9 @@ function wireProgressRail(rail: HTMLElement) {
 }
 
 wireScrollCueDismiss();
-document.querySelector<HTMLButtonElement>('#begin-btn')!.addEventListener('click', beginLadder, {
-  once: true,
-});
+// NOT { once: true } — the landing screen reappears on every replay (see
+// onLadderEnd's replay handler), so this listener has to fire every time
+// Begin is clicked, not just the first. A one-shot listener here was the
+// root cause of "play again doesn't reset": the button looked clickable but
+// silently did nothing from the second run onward.
+document.querySelector<HTMLButtonElement>('#begin-btn')!.addEventListener('click', beginLadder);

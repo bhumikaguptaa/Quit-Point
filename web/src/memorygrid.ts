@@ -13,7 +13,7 @@ const PRE_WATCH_MS = 500;
 
 export interface MemoryGridCallbacks {
   /** fires once the reader has entered a full sequence */
-  onSubmit: (isCorrect: boolean, isNearMiss: boolean, matchedPrefix: number) => void;
+  onSubmit: (isCorrect: boolean, isNearMiss: boolean, matchedPrefix: number, sequence: number[]) => void;
 }
 
 /**
@@ -128,7 +128,7 @@ export class MemoryGrid {
 
     this.timers.push(
       window.setTimeout(() => {
-        this.callbacks.onSubmit(result.correct, result.nearMiss, result.matchedPrefix);
+        this.callbacks.onSubmit(result.correct, result.nearMiss, result.matchedPrefix, this.puzzle.sequence);
       }, 520),
     );
   }

@@ -1,32 +1,30 @@
 /**
  * C2 replacement: "the model would have stopped at X, you stopped at Y."
  *
- * The old chart plotted the Sukhov threshold function directly (log-scale
- * y-axis, "levels remaining needed to justify quitting") and was accurate but
- * unreadable to a general audience — plus the x-domain ran 0-8 while the data
- * only ever reached 1, and the reader's dot didn't line up with the dashed
- * threshold line it was meant to be compared against.
- *
- * Replaced with a single sentence, drawn: a track of attempt markers, a
- * Model-colored node where the optimal policy would have walked, a You-colored
- * node where the reader actually stopped, and the gap between them shaded.
- *
  * Framing note: this is attempts-within-the-final-level, not levels-across-
  * the-ladder. The model only ever produces a stopping point in terms of
  * attempts at the length you got stuck on — confirmed against optimal_action:
  * the policy never quits on an earlier LEVEL than the reader, since every
  * earlier level was solved to get there. A "model stops at level 5" framing
  * would not be backed by what the function actually computes.
+ *
+ * Never-hide-a-chart rule: a reader who quit with zero wrong answers on
+ * their final length gives the model nothing to react to, so there's no
+ * finite "model stop" attempt. The fix is NOT to hide the chart — it's to
+ * draw the honest version of that state: your marker sits at the one
+ * attempt you made, and the model's track runs off the right edge with a
+ * fade, because it had no reason to stop yet and would have kept going
+ * indefinitely. That's a stronger image than a missing chart, not a weaker
+ * one, and it was verified against three outcomes (clean quit, quit after
+ * misses, finished the ladder) rather than leaving any of them as prose only.
  */
 import type { GhostRun } from './ghost';
 import { animateOnVisible } from './motion';
 
 export interface RunwayData {
-  /** total attempts to show on the track (at least enough to cover both markers) */
   trackLength: number;
-  /** 1-indexed attempt the model would have walked on; null if it never got the chance to */
+  /** 1-indexed attempt the model would have walked on; null = it never got a reason to (runs off the edge) */
   modelStopAt: number | null;
-  /** 1-indexed attempt the reader actually stopped on */
   youStopAt: number;
 }
 
@@ -37,17 +35,15 @@ export function runwayFromGhost(ghost: GhostRun): RunwayData {
   return { trackLength, modelStopAt, youStopAt };
 }
 
-export function renderRunway(container: HTMLElement, data: RunwayData): string {
-  const { trackLength, modelStopAt, youStopAt } = data;
+export function renderRunway(container: HTMLElement, data: RunwayData): void {
+  const { youStopAt, modelStopAt } = data;
 
   if (modelStopAt === null) {
-    // reader never missed on their final length — nothing for the model to
-    // react to, so there's no gap to draw. Handled by the caller's copy
-    // branch; this chart simply doesn't render.
-    container.innerHTML = '';
-    return '';
+    renderCleanQuitRunway(container, youStopAt);
+    return;
   }
 
+  const trackLength = data.trackLength;
   const pct = (n: number) => `${((n - 0.5) / trackLength) * 100}%`;
   const lower = Math.min(modelStopAt, youStopAt);
   const upper = Math.max(modelStopAt, youStopAt);
@@ -76,5 +72,31 @@ export function renderRunway(container: HTMLElement, data: RunwayData): string {
     </div>
   `;
   animateOnVisible(container.querySelector('.chart-grow')!, 'is-visible');
-  return container.innerHTML;
+}
+
+/**
+ * Clean-quit state: your marker sits at the attempt you made, the model's
+ * track fades off the right edge of the frame rather than resolving to a
+ * point — it never got a reason to stop. Mirrors the reference kit's
+ * `.runoff` treatment exactly (a gradient from the model color to transparent).
+ */
+function renderCleanQuitRunway(container: HTMLElement, youStopAt: number): void {
+  // show a few ticks of "still climbing" runway past where the reader stopped
+  const visibleTicks = youStopAt + 6;
+  const youPct = `${(youStopAt / visibleTicks) * 100}%`;
+
+  const ticks = Array.from({ length: visibleTicks }, (_, i) => `<span class="tick">${i + 1}</span>`).join('');
+
+  container.innerHTML = `
+    <div class="runway chart-grow is-clean-quit">
+      <span class="flag you" style="left:${youPct}">you stopped</span>
+      <div class="track">
+        <div class="runoff" style="left:${youPct}"></div>
+        <span class="node you" style="left:${youPct}"></span>
+      </div>
+      <span class="flag mod">the model was still going &rarr;</span>
+      <div class="tickrow">${ticks}</div>
+    </div>
+  `;
+  animateOnVisible(container.querySelector('.chart-grow')!, 'is-visible');
 }

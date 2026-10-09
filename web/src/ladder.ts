@@ -12,6 +12,8 @@ export interface AttemptRecord {
   nearMiss: boolean;
   /** how many leading tiles were recalled correctly */
   matchedPrefix: number;
+  /** the tile indices (0..TILE_COUNT-1) the reader was shown, in flash order */
+  sequence: number[];
 }
 
 export interface LadderResult {
@@ -86,8 +88,8 @@ export class Ladder {
 
     this.grid?.destroy();
     this.grid = new MemoryGrid(this.container, puzzle, {
-      onSubmit: (correct, nearMiss, matchedPrefix) =>
-        this.handleSubmit(correct, nearMiss, matchedPrefix),
+      onSubmit: (correct, nearMiss, matchedPrefix, sequence) =>
+        this.handleSubmit(correct, nearMiss, matchedPrefix, sequence),
     });
 
     this.emit({
@@ -100,7 +102,7 @@ export class Ladder {
     this.grid.start(leadMs);
   }
 
-  private handleSubmit(correct: boolean, nearMiss: boolean, matchedPrefix: number) {
+  private handleSubmit(correct: boolean, nearMiss: boolean, matchedPrefix: number, sequence: number[]) {
     if (this.done) return;
 
     this.attempts.push({
@@ -108,6 +110,7 @@ export class Ladder {
       correct,
       nearMiss,
       matchedPrefix,
+      sequence,
     });
 
     if (correct) {
