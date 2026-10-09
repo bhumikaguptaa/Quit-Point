@@ -59,7 +59,7 @@ export function renderOneMoreTrySlider(
         <label for="try-range">how much runway would you give yourself?</label>
         <input type="range" id="try-range" min="0" max="${MAX_T}" step="1" value="0" />
         <p class="try-readout">
-          <span id="try-readout-t">0</span> more attempts &mdash; expected value
+          <span id="try-readout-t">0</span> more attempts, expected value
           <strong id="try-readout-v">${values[0].toFixed(2)}</strong>
         </p>
       </div>

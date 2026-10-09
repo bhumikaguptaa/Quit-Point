@@ -10,7 +10,12 @@ app.innerHTML = `
   </nav>
 
   <section id="cold-open">
+    <div class="landing-field" aria-hidden="true">
+      ${Array.from({ length: 48 }, () => '<i></i>').join('')}
+    </div>
+
     <div class="landing" id="landing">
+      <p class="kicker landing-kicker">a memory span ladder</p>
       <header class="cold-open-head">
         <h1 class="site-title">The Quit Point</h1>
         <p class="site-tagline">Watch the sequence. Tap it back. It gets longer.</p>

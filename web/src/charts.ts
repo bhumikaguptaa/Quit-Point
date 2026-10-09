@@ -52,7 +52,7 @@ function steamChart(readerCompletionPct: number): string {
   return `
     <figure class="small-multiple">
       <figcaption>
-        <h3>You finished more of this ladder than the median player finishes of their games &mdash; or less. Here's where you land.</h3>
+        <h3>You finished more of this ladder than the median player finishes of their games, or less. Here's where you land.</h3>
         <p class="chart-source">${STEAM.source}</p>
       </figcaption>
       <div class="bars">
@@ -69,7 +69,7 @@ function harvardxChart(): string {
     <figure class="small-multiple">
       <figcaption>
         <h3>${HARVARDX.pctCertifiedOfRegistered}% of ${HARVARDX.registered.toLocaleString()} HarvardX students finished with a certificate.</h3>
-        <p class="chart-source">${HARVARDX.source} &mdash; ${HARVARDX.certified.toLocaleString()} certified overall</p>
+        <p class="chart-source">${HARVARDX.source}, ${HARVARDX.certified.toLocaleString()} certified overall</p>
       </figcaption>
       <div class="bars">
         ${sorted.map((c) => barRow(c.name, c.pctCertified, max)).join('')}
@@ -84,7 +84,7 @@ function duolingoChart(): string {
     <figure class="small-multiple">
       <figcaption>
         <h3>${DUOLINGO.pctSingleDayOnly}% of Duolingo learners never come back after day one.</h3>
-        <p class="chart-source">${DUOLINGO.source} &mdash; n=${DUOLINGO.nUsers.toLocaleString()}</p>
+        <p class="chart-source">${DUOLINGO.source}, n=${DUOLINGO.nUsers.toLocaleString()}</p>
       </figcaption>
       <div class="bars">
         ${DUOLINGO.retentionByDay.map((d) => barRow(`day ${d.day}`, d.pct, max)).join('')}

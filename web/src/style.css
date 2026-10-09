@@ -280,6 +280,7 @@ mark.model {
 
 #cold-open {
   min-height: 100vh;
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -288,22 +289,107 @@ mark.model {
   padding: 72px 24px;
   text-align: center;
   position: relative;
+  overflow: hidden;
+}
+
+/*
+ * Ambient background motif: a loose grid of tiles echoing the actual memory
+ * grid, so the hero has real visual presence instead of flat paper, and ties
+ * the cold open to the mechanic rather than being decoration for its own
+ * sake. Pure CSS, no images; respects reduced-motion by just not animating.
+ */
+.landing-field {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: clamp(18px, 3vw, 36px);
+  padding: clamp(24px, 6vw, 72px);
+  pointer-events: none;
+  /* fade the field out toward the center so it never competes with the
+     title/button sitting on top of it, regardless of animation phase */
+  mask-image: radial-gradient(ellipse 55% 50% at center, transparent 35%, black 85%);
+  -webkit-mask-image: radial-gradient(ellipse 55% 50% at center, transparent 35%, black 85%);
+}
+
+.landing-field i {
+  aspect-ratio: 1;
+  border-radius: 6px;
+  background: var(--mark-neutral);
+  opacity: 0.16;
+}
+
+.landing-field i:nth-child(7n + 1) {
+  background: var(--mark-you);
+  opacity: 0.14;
+}
+
+.landing-field i:nth-child(11n + 3) {
+  background: var(--mark-model);
+  opacity: 0.14;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .landing-field i {
+    animation: field-pulse 7s ease-in-out infinite;
+  }
+  .landing-field i:nth-child(odd) {
+    animation-delay: -2.3s;
+  }
+  .landing-field i:nth-child(3n) {
+    animation-delay: -4.6s;
+  }
+
+  @keyframes field-pulse {
+    0%,
+    100% {
+      opacity: 0.08;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.2;
+      transform: scale(1.05);
+    }
+  }
+}
+
+@media (max-width: 640px) {
+  .landing-field {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+
+.landing,
+.play-area,
+.scroll-cue {
+  position: relative;
+  z-index: 1;
+}
+
+.landing-kicker {
+  margin-bottom: 0;
 }
 
 .cold-open-head {
-  max-width: min(100%, 40ch);
+  max-width: min(92vw, 720px);
 }
 
 .site-title {
-  font-size: clamp(44px, 8.5vw, 92px);
-  margin: 0 0 10px;
-  white-space: nowrap;
+  /* clamp was letting the rendered glyph width exceed the clamp()'d font
+     size's container at common desktop widths (nowrap + a 40ch cap meant
+     actual scrollWidth > layout width, so the text silently overflowed
+     its own centered box instead of actually sitting centered) */
+  font-size: clamp(40px, 9vw, 96px);
+  margin: 0 0 14px;
+  white-space: normal;
 }
 
 .site-tagline {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   margin: 0;
+  color: var(--ink-soft);
 }
 
 /* ---- A1: landing state, nothing plays until Begin is pressed ---- */
@@ -592,6 +678,13 @@ mark.model {
   padding: 96px 24px;
   opacity: 0;
   transform: translateY(20px);
+}
+
+/* short, text-only sections (no chart/grid below the lede) don't need the
+   full 96px of breathing room on both sides — at that size a two-line
+   paragraph reads as lost in empty space rather than generous */
+.section-coda {
+  padding-block: 64px;
 }
 
 @media (prefers-reduced-motion: no-preference) {

@@ -55,7 +55,7 @@ export function renderRunway(container: HTMLElement, data: RunwayData): void {
   const gapAttempts = upper - lower;
   const gapLabel =
     gapAttempts === 0
-      ? 'no gap &mdash; same attempt'
+      ? 'no gap, same attempt'
       : `${gapAttempts} attempt${gapAttempts === 1 ? '' : 's'} of runway`;
 
   container.innerHTML = `

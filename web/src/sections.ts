@@ -85,7 +85,7 @@ export function buildRevealSections(root: HTMLElement, result: LadderResult) {
   root.innerHTML = `
     ${renderInstantReveal(result, totalLevels)}
     ${renderPacingBeat(result)}
-    ${renderTurn(result)}
+    ${renderTurn()}
     ${renderNearMiss(result)}
     ${renderStoppingExplainer(ghost, result)}
     ${renderGhost(ghost, result)}
@@ -134,7 +134,7 @@ function renderInstantReveal(result: LadderResult, totalLevels: number): string 
         <div class="reveal-stack">
           <p class="kicker kicker-inverse">the reveal</p>
           <h2 class="reveal-headline">You cleared every length. All ${totalLevels} of them.</h2>
-          <p class="reveal-lede">No quit point to measure &mdash; so there's nothing here for you. Scroll on anyway.</p>
+          <p class="reveal-lede">No quit point to measure, so there's nothing here for you. Scroll on anyway.</p>
         </div>
       </section>
     `;
@@ -179,26 +179,20 @@ function renderPacingBeat(result: LadderResult): string {
  * cited research rather than asserting it as something this site measured.
  * ============================================================ */
 
-function renderTurn(result: LadderResult): string {
+function renderTurn(): string {
   return `
     <section class="reveal-section section-prose" id="reveal-turn">
       <div class="prose-inner">
         <p class="kicker">the turn</p>
         <h2>You think that measured your memory. It mostly didn't.</h2>
         <p class="lede">
-          Sukhov et al. found that people deciding when to abandon an uncertain task are
-          <mark>less sensitive to how much runway they have left</mark> than the optimal strategy,
-          and more likely to stick with a bad option anyway. That's not a memory-capacity finding
-          &mdash; it's a tolerance-for-uncertainty finding. Two people who could both hold the exact
-          same sequence in their head can walk away at completely different points, because the
-          grid was never really the test. Here's your actual run:
+          Sukhov et al. found that when people decide whether to abandon an uncertain task, they
+          <mark>pay less attention to how much runway they have left</mark> than the optimal
+          strategy would. So this wasn't really testing your memory. It was testing how much
+          uncertainty you can sit with before you walk. Here's your actual run:
         </p>
       </div>
       <div id="session-replay" class="chart-bleed"></div>
-      <p class="footnote prose-inner">
-        Cleared lengths in purple, the one you stopped on in orange, lengths you never reached as
-        dashed outlines.${result.finished ? ' You cleared every length, so this is just the record of how you got there.' : ''}
-      </p>
     </section>
   `;
 }
@@ -217,7 +211,7 @@ function renderNearMiss(result: LadderResult): string {
           <p class="kicker">near miss?</p>
           <h2>You quit before you got a single sequence wrong.</h2>
           <p class="lede">
-            No miss to measure &mdash; you walked away clean. That's <mark>rarer than it sounds</mark>:
+            No miss to measure. You walked away clean, and that's <mark>rarer than it sounds</mark>:
             most people wait for at least one wrong answer before they call it.
           </p>
         </div>
@@ -239,7 +233,7 @@ function renderNearMiss(result: LadderResult): string {
             ? `You had <mark class="you">${matched} of ${result.sequenceLengthAtQuit} tiles</mark> right
                before it came apart. People who get this close tend to persist longer. You didn't.`
             : `The sequence broke down after <mark>${matched} tile${matched === 1 ? '' : 's'}</mark>.
-               Not a near miss &mdash; a cleaner quit than most.`
+               Not a near miss, just a cleaner quit than most.`
         }</p>
       </div>
     </section>
@@ -260,7 +254,7 @@ function renderStoppingExplainer(ghost: GhostRun, result: LadderResult): string 
           problem: keep trying an uncertain task, or abandon it, given how many failures you've
           stacked up and how much runway you have left. We're borrowing the model's structure, not
           claiming a memory span ladder is literally their task. In the original study "quit" means
-          switching to a fresh task, not stopping altogether &mdash; this ladder has nothing to
+          switching to a fresh task, not stopping altogether. This ladder has nothing to
           switch to, so we read the policy's "quit" as "this length isn't worth your remaining budget."
         </p>
       </details>
@@ -274,7 +268,7 @@ function renderStoppingExplainer(ghost: GhostRun, result: LadderResult): string 
       <section class="reveal-section section-chart" id="reveal-stopping">
         <div class="prose-inner">
           <p class="kicker">the math</p>
-          <h2>There's a mathematically optimal point to give up &mdash; you never got there.</h2>
+          <h2>There's a mathematically optimal point to give up. You never got there.</h2>
           <p class="lede">
             Sukhov et al. (2025, N=${SUKHOV.n.toLocaleString()}) modeled exactly this decision: keep
             trying an uncertain task, or walk. You quit before making a single attempt at this
@@ -295,7 +289,7 @@ function renderStoppingExplainer(ghost: GhostRun, result: LadderResult): string 
   if (modelStopAt === null) {
     headline = 'The model would still be going.';
     lede = `You never gave it a wrong answer to react to. Given what it had seen, the optimal move was
-       still <mark class="model">keep going</mark> &mdash; the gap between you and it isn't small,
+       still <mark class="model">keep going</mark>. The gap between you and it isn't small,
        it's open-ended.`;
   } else if (runway.youStopAt === modelStopAt) {
     headline = 'You stopped exactly when the math did.';
@@ -340,13 +334,13 @@ function renderGhost(ghost: GhostRun, result: LadderResult): string {
           : `The ghost left ${ghost.extraAttempts} attempt${ghost.extraAttempts === 1 ? '' : 's'} before you did.`;
 
   const lede = isFinished
-    ? 'We ran the optimal strategy alongside your exact session. It never got a failure to react to, so it stayed to the end &mdash; same as you.'
+    ? 'We ran the optimal strategy alongside your exact session. It never got a failure to react to, so it stayed to the end, same as you.'
     : noAttempts
       ? `We ran the optimal strategy alongside your exact session. You quit before this length's
          sequence was even shown back to you, so there's nothing for either of you to have done yet.`
       : isCleanQuit
         ? `We ran the optimal strategy alongside your exact session. You stopped clean, so it had no reason
-           to react &mdash; it would have <mark class="model">kept climbing</mark> past where you stopped.`
+           to react. It would have <mark class="model">kept climbing</mark> past where you stopped.`
         : ghost.matchedOptimal
           ? `Your first miss at ${result.sequenceLengthAtQuit} tiles was the model's cue to walk.
              <mark class="model">Most people don't stop there.</mark> Most people watch it again.`
@@ -380,8 +374,8 @@ function renderOnceMoreBeat(result: LadderResult): string {
         <p class="kicker">try it yourself</p>
         <h2>How much runway is enough?</h2>
         <p class="lede">
-          Drag the slider. This is the model's actual expected value at the point you stopped
-          &mdash; your real successes and failures on that length &mdash; as the remaining budget
+          Drag the slider. This is the model's actual expected value at the point you stopped,
+          using your real successes and failures on that length, as the remaining budget
           changes. The line marks where it decides the level isn't worth it anymore.
         </p>
       </div>
@@ -421,8 +415,8 @@ function renderZoomOut(): string {
         <p class="kicker">zoom out</p>
         <h2>Almost no one finishes. You're one data point in a very long list.</h2>
         <p class="lede">
-          Duolingo logs exactly when people stop &mdash; a real day-by-day survival curve, not an
-          endpoint. Here's where your own drop-off lands on it.
+          Duolingo logs exactly when people stop, giving us a real day-by-day survival curve
+          instead of a single endpoint. Here's where your own drop-off lands on it.
         </p>
       </div>
       <div id="survival-curve" class="chart-bleed"></div>

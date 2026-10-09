@@ -71,7 +71,7 @@ export function renderSurvivalCurve(container: HTMLElement, readerCompletionPct:
       <text x="${Math.min(readerX + 11, width - margin.right - 90)}" y="${readerY - 9}" class="survival-end-label you">you stopped here</text>
       <text x="${x(maxDay) - 6}" y="${y(data[data.length - 1].pct) - 10}" class="survival-end-label model" text-anchor="end">Duolingo</text>
     </svg>
-    <p class="chart-source">${DUOLINGO.source} &mdash; n=${DUOLINGO.nUsers.toLocaleString()}. Your position is
+    <p class="chart-source">${DUOLINGO.source}, n=${DUOLINGO.nUsers.toLocaleString()}. Your position is
       placed at the closest matching retention %, not a literal day-for-level comparison.</p>
   `;
 
